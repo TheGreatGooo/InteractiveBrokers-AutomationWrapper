@@ -139,7 +139,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
             .filter(
                 body -> body.startsWith(
                     String.format(
-                        "> <@%s:%s> @here IBApi need 2factor auth code is ",
+                        "> <@%s:%s> @room IBApi need 2factor auth code is ",
                         matrixBotName.toLowerCase(),
                         matrixServerName.toLowerCase()) + authCode))
             .forEach(replyMessage -> {
