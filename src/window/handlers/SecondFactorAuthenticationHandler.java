@@ -22,25 +22,57 @@ import java.awt.Window;
 import java.awt.event.WindowEvent;
 import java.time.Duration;
 import java.time.Instant;
-
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.swing.JDialog;
-
+import io.github.ma1uta.matrix.client.StandaloneClient;
+import io.github.ma1uta.matrix.client.model.sync.JoinedRoom;
+import io.github.ma1uta.matrix.client.model.sync.Rooms;
+import io.github.ma1uta.matrix.client.model.sync.SyncResponse;
+import io.github.ma1uta.matrix.client.sync.SyncLoop;
+import io.github.ma1uta.matrix.client.sync.SyncParams;
+import io.github.ma1uta.matrix.event.Event;
+import io.github.ma1uta.matrix.event.content.RoomMessageContent;
+import utils.Settings;
 import utils.SwingUtils;
 import window.WindowHandler;
 
 public class SecondFactorAuthenticationHandler implements WindowHandler {
-  Instant lastWindowOpened = Instant.MIN;
+  private Instant lastWindowOpened = Instant.MIN;
+  private final Pattern codePattern = Pattern.compile(
+      "<html>If you did not receive the notification, enter this challenge in the <br>IBKR Mobile App: &nbsp;&nbsp;&nbsp;<strong style='font-size:110%;'>([0-9 ]+)</strong>&nbsp;&nbsp;&nbsp; Then enter the response below and click OK.</html>");
+  private final StandaloneClient mxClient;
+  private ExecutorService executor;
+  private final String matrixServerName;
+  private final String matrixBotName;
+
+  public SecondFactorAuthenticationHandler() {
+    matrixServerName = Settings.settings().getString("MatrixServerName", "");
+    matrixBotName = Settings.settings().getString("MatrixBotName", "");
+    mxClient =
+        new StandaloneClient.Builder().domain(matrixServerName).userId(matrixBotName).build();
+    mxClient.auth()
+        .login(matrixBotName, Settings.settings().getString("MatrixBotAuth", "").toCharArray());
+  }
 
   @Override
   public boolean filterEvent(Window window, int eventId) {
     switch (eventId) {
       case WindowEvent.WINDOW_OPENED:
         lastWindowOpened = Instant.now();
-        break;
+        executor = Executors.newFixedThreadPool(1);
+        return true;
       case WindowEvent.WINDOW_CLOSED:
-        if (Duration.between(lastWindowOpened, Instant.now()).compareTo(Duration.ofSeconds(3)) < 0) {
+        if (Duration.between(lastWindowOpened, Instant.now())
+            .compareTo(Duration.ofSeconds(3)) < 0) {
           System.exit(999);
         }
+        executor.shutdown();
         break;
     }
     return false;
@@ -48,12 +80,78 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
 
   @Override
   public void handleWindow(Window window, int eventID) {
+    Matcher matcher =
+        codePattern.matcher(
+            SwingUtils
+                .findLabel(
+                    window,
+                    "If you did not receive the notification, enter this challenge in the")
+                .getText());
+    if (!matcher.matches()) {
+      System.exit(998);
+    }
+    String authCode = matcher.group(1);
+    mxClient.room().joinedRooms().getJoinedRooms().stream().forEach(
+        room -> mxClient.eventAsync()
+            .sendMessage(room, "@here IBApi need 2factor auth code is " + authCode));
+    SyncLoop syncLoop = new SyncLoop(
+        mxClient.sync(),
+        (
+            syncResponse,
+            syncParams) -> processMatrixMessages(syncResponse, syncParams, window, authCode));
+    syncLoop.setInit(SyncParams.builder().fullState(true).timeout(100000L).build());
+    executor.execute(syncLoop);
   }
 
   @Override
   public boolean recogniseWindow(Window window) {
-    if (!(window instanceof JDialog)) return false;
+    if (!(window instanceof JDialog))
+      return false;
 
     return (SwingUtils.titleContains(window, "Second Factor Authentication"));
+  }
+
+  private void processMatrixMessages(
+      SyncResponse syncResponse,
+      SyncParams syncParams,
+      Window window,
+      String authCode) {
+    try {
+      System.out.println("Next batch: " + syncParams.getNextBatch());
+      if (syncParams.isFullState()) {
+        syncParams.setFullState(false);
+      }
+      Rooms rooms = syncResponse.getRooms();
+      if (rooms != null && rooms.getJoin() != null) {
+        rooms.getJoin().entrySet().stream().map(Entry::getValue).map(JoinedRoom::getTimeline)
+            .map(Optional::ofNullable)
+            .map(
+                timelineMaybe -> timelineMaybe
+                    .flatMap(timeline -> Optional.ofNullable(timeline.getEvents())))
+            .filter(Optional::isPresent).map(Optional::get).flatMap(List::stream)
+            .map(Event::getContent).filter(RoomMessageContent.class::isInstance)
+            .map(RoomMessageContent.class::cast).map(RoomMessageContent::getBody)
+            .filter(
+                body -> body.startsWith(
+                    String.format(
+                        "> <@%s:%s> @here IBApi need 2factor auth code is ",
+                        matrixBotName.toLowerCase(),
+                        matrixServerName.toLowerCase()) + authCode))
+            .forEach(replyMessage -> {
+              String[] replyParts = replyMessage.split("\n");
+              if (replyParts.length == 3) {
+                String returnCode = replyParts[2];
+                returnCode = returnCode.replace(" ", "");
+                SwingUtils.setTextField(window, 0, returnCode.substring(0, 4));
+                SwingUtils.setTextField(window, 1, returnCode.substring(4));
+                SwingUtils.clickButton(window, "OK");
+                syncParams.setTerminate(true);
+                Thread.currentThread().interrupt();
+              }
+            });
+      }
+    } catch (Exception e) {
+      System.exit(808);
+    }
   }
 }
