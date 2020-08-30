@@ -54,14 +54,14 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
   public SecondFactorAuthenticationHandler() {
     matrixServerName = Settings.settings().getString("MatrixServerName", "");
     matrixBotName = Settings.settings().getString("MatrixBotName", "");
-    try{
+    try {
       mxClient =
           new StandaloneClient.Builder().domain(matrixServerName).userId(matrixBotName).build();
       mxClient.auth()
           .login(matrixBotName, Settings.settings().getString("MatrixBotAuth", "").toCharArray());
-    }catch(Exception e){
+    } catch (Exception e) {
       System.exit(989);
-      throw(e);
+      throw (e);
     }
   }
 
@@ -98,7 +98,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
     String authCode = matcher.group(1);
     mxClient.room().joinedRooms().getJoinedRooms().stream().forEach(
         room -> mxClient.eventAsync()
-            .sendMessage(room, "@here IBApi need 2factor auth code is " + authCode));
+            .sendMessage(room, "@room IBApi need 2factor auth code is " + authCode));
     SyncLoop syncLoop = new SyncLoop(
         mxClient.sync(),
         (
