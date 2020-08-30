@@ -59,7 +59,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
           new StandaloneClient.Builder().domain(matrixServerName).userId(matrixBotName).build();
       mxClient.auth()
           .login(matrixBotName, Settings.settings().getString("MatrixBotAuth", "").toCharArray());
-    }(Exception e){
+    }catch(Exception e){
       System.exit(989);
     }
   }
