@@ -54,10 +54,14 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
   public SecondFactorAuthenticationHandler() {
     matrixServerName = Settings.settings().getString("MatrixServerName", "");
     matrixBotName = Settings.settings().getString("MatrixBotName", "");
-    mxClient =
-        new StandaloneClient.Builder().domain(matrixServerName).userId(matrixBotName).build();
-    mxClient.auth()
-        .login(matrixBotName, Settings.settings().getString("MatrixBotAuth", "").toCharArray());
+    try{
+      mxClient =
+          new StandaloneClient.Builder().domain(matrixServerName).userId(matrixBotName).build();
+      mxClient.auth()
+          .login(matrixBotName, Settings.settings().getString("MatrixBotAuth", "").toCharArray());
+    }(Exception e){
+      System.exit(989);
+    }
   }
 
   @Override
