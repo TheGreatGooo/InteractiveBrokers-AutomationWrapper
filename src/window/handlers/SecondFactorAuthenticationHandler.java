@@ -30,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.JDialog;
+import javax.swing.JLabel;
 import io.github.ma1uta.matrix.client.StandaloneClient;
 import io.github.ma1uta.matrix.client.model.sync.JoinedRoom;
 import io.github.ma1uta.matrix.client.model.sync.Rooms;
@@ -46,10 +47,12 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
   private Instant lastWindowOpened = Instant.MIN;
   private final Pattern codePattern = Pattern.compile(
       "<html>If you did not receive the notification, enter this challenge in the <br>IBKR Mobile App: &nbsp;&nbsp;&nbsp;<strong style='font-size:110%;'>([0-9 ]+)</strong>&nbsp;&nbsp;&nbsp; Then enter the response below and click OK.</html>");
+  private final Pattern challengePattern = Pattern.compile("Challenge: ([0-9 ]+)");
   private final StandaloneClient mxClient;
   private ExecutorService executor;
   private final String matrixServerName;
   private final String matrixBotName;
+  private JLabel challengeLabel = null;
 
   public SecondFactorAuthenticationHandler() {
     matrixServerName = Settings.settings().getString("MatrixServerName", "");
@@ -85,16 +88,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
 
   @Override
   public void handleWindow(Window window, int eventID) {
-    Matcher matcher =
-        codePattern.matcher(
-            SwingUtils
-                .findLabel(
-                    window,
-                    "If you did not receive the notification, enter this challenge in the")
-                .getText());
-    if (!matcher.matches()) {
-      System.exit(998);
-    }
+    Matcher matcher = getMatcher(window);
     String authCode = matcher.group(1);
     mxClient.room().joinedRooms().getJoinedRooms().stream().forEach(
         room -> mxClient.eventAsync()
@@ -108,12 +102,42 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
     executor.execute(syncLoop);
   }
 
+  private Matcher getMatcher(Window window) {
+    Matcher matcher;
+    if (challengeLabel == null) {
+      matcher = codePattern.matcher(
+          SwingUtils
+              .findLabel(
+                  window,
+                  "If you did not receive the notification, enter this challenge in the")
+              .getText());
+    } else {
+      matcher = challengePattern.matcher(challengeLabel.getText());
+    }
+    if (!matcher.matches()) {
+      System.exit(998);
+    }
+    return matcher;
+  }
+
   @Override
   public boolean recogniseWindow(Window window) {
     if (!(window instanceof JDialog))
       return false;
 
-    return (SwingUtils.titleContains(window, "Second Factor Authentication"));
+    if (SwingUtils.titleContains(window, "Second Factor Authentication")) {
+      return true;
+    }
+    challengeLabel = SwingUtils.findLabel(window, "Challenge: ");
+    if (challengeLabel != null) {
+      Matcher matcher = challengePattern.matcher(challengeLabel.getText());
+      if (matcher.matches()) {
+        return true;
+      } else {
+        System.out.println("Found challenge but did not match expected pattern.");
+      }
+    }
+    return false;
   }
 
   private void processMatrixMessages(
