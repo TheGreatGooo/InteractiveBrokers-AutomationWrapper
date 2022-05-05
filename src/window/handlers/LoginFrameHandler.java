@@ -38,8 +38,10 @@ final public class LoginFrameHandler extends AbstractLoginHandler {
     // TWS displays a different (information-only) dialog, also
     // entitled Login, when it's trying to reconnect
     return ((SwingUtils.titleEquals(window, "New Login") ||
-        SwingUtils.titleEquals(window, "Login")) &&
-        SwingUtils.findButton(window, "Login") != null);
+        (SwingUtils.titleEquals(window, "Login")) &&
+        SwingUtils.findButton(window, "Login") != null) ||
+        (SwingUtils.titleEquals(window, "Interactive Brokers Gateway")) &&
+        SwingUtils.findButton(window, "Log In") != null) );
   }
 
   @Override
