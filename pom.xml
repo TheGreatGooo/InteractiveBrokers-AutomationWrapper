@@ -38,16 +38,16 @@
 		<dependency>
 			<artifactId>LocalTWSJar</artifactId>
 			<groupId>jts4launch</groupId>
-			<version>978</version>
+			<version>981</version>
 			<scope>system</scope>
-			<systemPath>${ib.api.jars.path}/jts4launch-978.jar</systemPath>
+			<systemPath>${ib.api.jars.path}/jts4launch-981.jar</systemPath>
 		</dependency>
 		<dependency>
 			<artifactId>LocalTWSJar</artifactId>
 			<groupId>twslaunch</groupId>
-			<version>978</version>
+			<version>981</version>
 			<scope>system</scope>
-			<systemPath>${ib.api.jars.path}/twslaunch-978.jar</systemPath>
+			<systemPath>${ib.api.jars.path}/twslaunch-981.jar</systemPath>
 		</dependency>
         <dependency>
           <groupId>io.github.ma1uta.matrix</groupId>
