@@ -57,6 +57,9 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
   public SecondFactorAuthenticationHandler() {
     matrixServerName = Settings.settings().getString("MatrixServerName", "");
     matrixBotName = Settings.settings().getString("MatrixBotName", "");
+    if (matrixServerName.isEmpty()){
+      return;
+    }
     try {
       mxClient =
           new StandaloneClient.Builder().domain(matrixServerName).userId(matrixBotName).build();
