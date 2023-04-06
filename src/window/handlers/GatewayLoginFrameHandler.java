@@ -34,7 +34,8 @@ final public class GatewayLoginFrameHandler extends AbstractLoginHandler {
       return false;
 
     return ((SwingUtils.titleContains(window, "IB Gateway") ||
-        SwingUtils.titleEquals(window, "Interactive Brokers Gateway"))
+        SwingUtils.titleEquals(window, "Interactive Brokers Gateway"))||
+        SwingUtils.titleEquals(window, "IBKR Gateway"))
         && (SwingUtils.findButton(window, "Log In") != null));
   }
 
