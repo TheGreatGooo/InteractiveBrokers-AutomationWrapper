@@ -55,7 +55,7 @@ public class StopTask
     try {
       ((ExecutorService) executor).shutdownNow();
       scheduledExecutorService.shutdownNow();
-
+      System.exit(0);
       writeInfo("Closing IBController");
       stop();
     } catch (Exception ex) {
