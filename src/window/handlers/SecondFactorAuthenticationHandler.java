@@ -48,21 +48,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Strings;
 
-import io.github.ma1uta.matrix.client.StandaloneClient;
-import io.github.ma1uta.matrix.client.model.sync.JoinedRoom;
-import io.github.ma1uta.matrix.client.model.sync.Rooms;
-import io.github.ma1uta.matrix.client.model.sync.SyncResponse;
-import io.github.ma1uta.matrix.client.sync.SyncLoop;
-import io.github.ma1uta.matrix.client.sync.SyncParams;
-import io.github.ma1uta.matrix.event.Event;
-import io.github.ma1uta.matrix.event.content.RoomMessageContent;
 import utils.Settings;
 import utils.SwingUtils;
 import window.WindowHandler;
 
 public class SecondFactorAuthenticationHandler implements WindowHandler {
   private Instant lastWindowOpened = Instant.MIN;
-  private final StandaloneClient mxClient;
   private ExecutorService executor;
   private final String httpMessageBusUrl;
   private final HttpClient httpClient;
