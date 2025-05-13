@@ -69,7 +69,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
   private JLabel challengeLabel = null;
   private final Instant instant = Instant.now();
   private final ObjectMapper objectMapper = new ObjectMapper();
-  private Optional<Double> lastMessageTs = 0;
+  private Optional<Double> lastMessageTs = Optional.of(0.0);
 
   public SecondFactorAuthenticationHandler() {
     httpMessageBusUrl = Settings.settings().getString("httpMessageBusUrl", "");
@@ -115,7 +115,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
         int i = 0;
         while (i < messages) {
           JsonNode message = rootNode.get(i);
-          if(lastMessageTs.orElse(0) < message.get("message_received_ts").asDouble()){
+          if(lastMessageTs.orElse(0.0) < message.get("message_received_ts").asDouble()){
             String messageString = message.get("message").asText();
             if(messageString.matches("\\d{6}")){
               SwingUtils.setTextField(window, 0, messageString);
@@ -137,15 +137,6 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
 
     if (SwingUtils.titleContains(window, "Second Factor Authentication")) {
       return true;
-    }
-    challengeLabel = SwingUtils.findLabel(window, "Challenge: ");
-    if (challengeLabel != null) {
-      Matcher matcher = challengePattern.matcher(challengeLabel.getText());
-      if (matcher.matches()) {
-        return true;
-      } else {
-        System.out.println("Found challenge but did not match expected pattern.");
-      }
     }
     return false;
   }
