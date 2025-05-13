@@ -144,13 +144,16 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
   private Optional<Double> getLastMessageTs(){
     JsonNode jsonNode = getMessages();
     int messages = jsonNode.size();
+    double lastTs = 0.0;
     int i = 0;
     while( i< messages ){
       JsonNode message = jsonNode.get(i);
-      return Optional.of(message.get("message_received_ts").asDouble());
+      if(lastTs<message.get("message_received_ts").asDouble()){
+        lastTs = message.get("message_received_ts").asDouble();
+      }
       i++;
     }
-    return Optional.empty();
+    return Optional.empty(lastTs);
   }
 
   private JsonNode getMessages() {
