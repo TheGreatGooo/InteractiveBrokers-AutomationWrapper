@@ -100,7 +100,9 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
     httpRequest.setEntity(new StringEntity("@room IBApi need TOPT auth code ["+ instant.getEpochSecond()+"]", ContentType.APPLICATION_JSON));
     try{
       httpClient.execute(httpRequest);
-    }catch(Exception e){}
+    }catch(Exception e){
+      throw new RuntimeException(e);
+    }
     executor.execute(()->{
       Instant startTime = Instant.now();
       while (Duration.between(startTime, Instant.now()).toMinutes() < 10) {
@@ -158,7 +160,9 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
     HttpGet httpGet = new HttpGet(httpMessageBusUrl);
     try{
       return httpClient.execute(httpGet,response -> objectMapper.readTree(response.getEntity().getContent()));
-    }catch(Exception e){}
+    }catch(Exception e){
+      throw new RuntimeException(e);
+    }
   }
 
 }
