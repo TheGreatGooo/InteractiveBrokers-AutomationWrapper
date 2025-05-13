@@ -94,6 +94,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
 
   @Override
   public void handleWindow(Window window, int eventID) {
+    System.out.println("Handling 2fa");
     if (httpClient == null ){
       return;
     }
