@@ -20,17 +20,34 @@ package window.handlers;
 
 import java.awt.Window;
 import java.awt.event.WindowEvent;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpRequestFactory;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.HttpClients;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Strings;
+
 import io.github.ma1uta.matrix.client.StandaloneClient;
 import io.github.ma1uta.matrix.client.model.sync.JoinedRoom;
 import io.github.ma1uta.matrix.client.model.sync.Rooms;
@@ -45,31 +62,22 @@ import window.WindowHandler;
 
 public class SecondFactorAuthenticationHandler implements WindowHandler {
   private Instant lastWindowOpened = Instant.MIN;
-  private final Pattern codePattern = Pattern.compile(
-      "<html>If you did not receive the notification, enter this challenge in the <br>IBKR Mobile App: &nbsp;&nbsp;&nbsp;<strong style='font-size:110%;'>([0-9 ]+)</strong>&nbsp;&nbsp;&nbsp; Then enter the response below and click OK.</html>");
-  private final Pattern challengePattern = Pattern.compile("Challenge: ([0-9 ]+)");
   private final StandaloneClient mxClient;
   private ExecutorService executor;
-  private final String matrixServerName;
-  private final String matrixBotName;
+  private final String httpMessageBusUrl;
+  private final HttpClient httpClient;
   private JLabel challengeLabel = null;
+  private final Instant instant = Instant.now();
+  private final ObjectMapper objectMapper = new ObjectMapper();
+  private Optional<Double> lastMessageTs = 0;
 
   public SecondFactorAuthenticationHandler() {
-    matrixServerName = Settings.settings().getString("MatrixServerName", "");
-    matrixBotName = Settings.settings().getString("MatrixBotName", "");
-    if (matrixServerName.isEmpty()){
-      mxClient = null;
+    httpMessageBusUrl = Settings.settings().getString("httpMessageBusUrl", "");
+    if (httpMessageBusUrl.isEmpty()){
+      httpClient = null;
       return;
     }
-    try {
-      mxClient =
-          new StandaloneClient.Builder().domain(matrixServerName).userId(matrixBotName).build();
-      mxClient.auth()
-          .login(matrixBotName, Settings.settings().getString("MatrixBotAuth", "").toCharArray());
-    } catch (Exception e) {
-      System.exit(989);
-      throw (e);
-    }
+    httpClient = HttpClients.createDefault();
   }
 
   @Override
@@ -81,7 +89,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
         return true;
       case WindowEvent.WINDOW_CLOSED:
         if (Duration.between(lastWindowOpened, Instant.now())
-            .compareTo(Duration.ofSeconds(3)) < 0) {
+            .compareTo(Duration.ofSeconds(1)) < 0) {
           System.exit(999);
         }
         executor.shutdown();
@@ -92,36 +100,34 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
 
   @Override
   public void handleWindow(Window window, int eventID) {
-    Matcher matcher = getMatcher(window);
-    String authCode = matcher.group(1);
-    mxClient.room().joinedRooms().getJoinedRooms().stream().forEach(
-        room -> mxClient.eventAsync()
-            .sendMessage(room, "@room IBApi need 2factor auth code is " + authCode));
-    SyncLoop syncLoop = new SyncLoop(
-        mxClient.sync(),
-        (
-            syncResponse,
-            syncParams) -> processMatrixMessages(syncResponse, syncParams, window, authCode));
-    syncLoop.setInit(SyncParams.builder().fullState(true).timeout(100000L).build());
-    executor.execute(syncLoop);
-  }
-
-  private Matcher getMatcher(Window window) {
-    Matcher matcher;
-    if (challengeLabel == null) {
-      matcher = codePattern.matcher(
-          SwingUtils
-              .findLabel(
-                  window,
-                  "If you did not receive the notification, enter this challenge in the")
-              .getText());
-    } else {
-      matcher = challengePattern.matcher(challengeLabel.getText());
+    if (httpClient == null ){
+      return;
     }
-    if (!matcher.matches()) {
-      System.exit(998);
-    }
-    return matcher;
+    lastMessageTs = getLastMessageTs();
+    HttpPost httpRequest = new HttpPost(httpMessageBusUrl);
+    httpRequest.setEntity(new StringEntity("@room IBApi need TOPT auth code ["+ instant.getEpochSecond()+"]", ContentType.APPLICATION_JSON));
+    httpClient.execute(httpRequest);
+    executor.execute(()->{
+      Instant startTime = Instant.now();
+      while (Duration.between(startTime, Instant.now()).toMinutes() < 10) {
+        JsonNode rootNode = getMessages();
+        int messages = rootNode.size();
+        int i = 0;
+        while (i < messages) {
+          JsonNode message = rootNode.get(i);
+          if(lastMessageTs.orElse(0) < message.get("message_received_ts").asDouble()){
+            String messageString = message.get("message").asText();
+            if(messageString.matches("\\d{6}")){
+              SwingUtils.setTextField(window, 0, messageString);
+              return;
+            }
+          }
+          i++;
+        }
+        Thread.sleep(1000);
+      }
+      System.out.println("Giving up waiting for TOTP");
+    });
   }
 
   @Override
@@ -144,47 +150,21 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
     return false;
   }
 
-  private void processMatrixMessages(
-      SyncResponse syncResponse,
-      SyncParams syncParams,
-      Window window,
-      String authCode) {
-    try {
-      System.out.println("Next batch: " + syncParams.getNextBatch());
-      if (syncParams.isFullState()) {
-        syncParams.setFullState(false);
-      }
-      Rooms rooms = syncResponse.getRooms();
-      if (rooms != null && rooms.getJoin() != null) {
-        rooms.getJoin().entrySet().stream().map(Entry::getValue).map(JoinedRoom::getTimeline)
-            .map(Optional::ofNullable)
-            .map(
-                timelineMaybe -> timelineMaybe
-                    .flatMap(timeline -> Optional.ofNullable(timeline.getEvents())))
-            .filter(Optional::isPresent).map(Optional::get).flatMap(List::stream)
-            .map(Event::getContent).filter(RoomMessageContent.class::isInstance)
-            .map(RoomMessageContent.class::cast).map(RoomMessageContent::getBody)
-            .filter(
-                body -> body.startsWith(
-                    String.format(
-                        "> <@%s:%s> @room IBApi need 2factor auth code is ",
-                        matrixBotName.toLowerCase(),
-                        matrixServerName.toLowerCase()) + authCode))
-            .forEach(replyMessage -> {
-              String[] replyParts = replyMessage.split("\n");
-              if (replyParts.length == 3) {
-                String returnCode = replyParts[2];
-                returnCode = returnCode.replace(" ", "");
-                SwingUtils.setTextField(window, 0, returnCode.substring(0, 4));
-                SwingUtils.setTextField(window, 1, returnCode.substring(4));
-                SwingUtils.clickButton(window, "OK");
-                syncParams.setTerminate(true);
-                Thread.currentThread().interrupt();
-              }
-            });
-      }
-    } catch (Exception e) {
-      System.exit(808);
+  private Optional<Double> getLastMessageTs(){
+    JsonNode jsonNode = getMessages();
+    int messages = jsonNode.size();
+    int i = 0;
+    while( i< messages ){
+      JsonNode message = jsonNode.get(i);
+      return Optional.of(message.get("message_received_ts").asDouble());
+      i++;
     }
+    return Optional.empty();
   }
+
+  private JsonNode getMessages() {
+    HttpGet httpGet = new HttpGet(httpMessageBusUrl);
+    return httpClient.execute(httpGet,response -> objectMapper.readTree(response.getEntity().getContent()));
+  }
+
 }
