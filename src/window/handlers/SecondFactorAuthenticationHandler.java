@@ -153,7 +153,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
       }
       i++;
     }
-    return Optional.empty(lastTs);
+    return Optional.of(lastTs);
   }
 
   private JsonNode getMessages() {
