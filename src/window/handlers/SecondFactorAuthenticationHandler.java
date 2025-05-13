@@ -100,7 +100,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
     }
     lastMessageTs = getLastMessageTs();
     HttpPost httpRequest = new HttpPost(httpMessageBusUrl);
-    httpRequest.setEntity(new StringEntity("@room IBApi need TOPT auth code ["+ instant.getEpochSecond()+"]", ContentType.APPLICATION_JSON));
+    httpRequest.setEntity(new StringEntity("{\"body\":\"@room IBApi need TOPT auth code ["+ instant.getEpochSecond()+"]\"}", ContentType.APPLICATION_JSON));
     try{
       httpClient.execute(httpRequest);
     }catch(Exception e){
