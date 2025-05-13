@@ -94,7 +94,6 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
 
   @Override
   public void handleWindow(Window window, int eventID) {
-    System.out.println("Handling 2fa");
     if (httpClient == null ){
       return;
     }
@@ -118,6 +117,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
             String messageString = message.get("message").asText();
             if(messageString.matches("\\d{6}")){
               SwingUtils.setTextField(window, 0, messageString);
+              SwingUtils.clickButton(window, "OK");
               return;
             }
           }
@@ -137,7 +137,6 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
   public boolean recogniseWindow(Window window) {
     if (!(window instanceof JDialog))
       return false;
-    System.out.println(((JDialog)window).getTitle());
     if (SwingUtils.titleContains(window, "Second Factor Authentication")) {
       return true;
     }
