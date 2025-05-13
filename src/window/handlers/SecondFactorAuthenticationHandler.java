@@ -33,6 +33,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import java.lang.InterruptedException;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpRequestFactory;
@@ -97,7 +98,9 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
     lastMessageTs = getLastMessageTs();
     HttpPost httpRequest = new HttpPost(httpMessageBusUrl);
     httpRequest.setEntity(new StringEntity("@room IBApi need TOPT auth code ["+ instant.getEpochSecond()+"]", ContentType.APPLICATION_JSON));
-    httpClient.execute(httpRequest);
+    try{
+      httpClient.execute(httpRequest);
+    }catch(Exception e){}
     executor.execute(()->{
       Instant startTime = Instant.now();
       while (Duration.between(startTime, Instant.now()).toMinutes() < 10) {
@@ -115,7 +118,11 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
           }
           i++;
         }
-        Thread.sleep(1000);
+        try{
+          Thread.sleep(1000);
+        }catch(InterruptedException e){
+
+        }
       }
       System.out.println("Giving up waiting for TOTP");
     });
@@ -149,7 +156,9 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
 
   private JsonNode getMessages() {
     HttpGet httpGet = new HttpGet(httpMessageBusUrl);
-    return httpClient.execute(httpGet,response -> objectMapper.readTree(response.getEntity().getContent()));
+    try{
+      return httpClient.execute(httpGet,response -> objectMapper.readTree(response.getEntity().getContent()));
+    }catch(Exception e){}
   }
 
 }
