@@ -33,6 +33,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.SwingUtilities;
+
 import java.lang.InterruptedException;
 
 import org.apache.http.HttpEntity;
@@ -134,7 +136,7 @@ public class SecondFactorAuthenticationHandler implements WindowHandler {
   public boolean recogniseWindow(Window window) {
     if (!(window instanceof JDialog))
       return false;
-
+    System.out.println(((JDialog)window).getTitle());
     if (SwingUtils.titleContains(window, "Second Factor Authentication")) {
       return true;
     }
